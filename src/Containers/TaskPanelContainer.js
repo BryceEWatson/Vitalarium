@@ -12,6 +12,7 @@ const mapStateToProps = (state) => {
     currentSprintId: state.project.project.sprints[0].id,
     nextSprintId: state.project.project.sprints[1].id,
     isOpen: state.task.isOpenUpdateTaskPanel,
+    isUpdating: state.task.isUpdating,
     // isShowCloseWarning: state.task.isShowCreateCloseWarningModal,
     // isCreateFailure: state.task.isCreateFailure,
   }
@@ -20,8 +21,6 @@ const mapStateToProps = (state) => {
 const mapDispatchToProps = (dispatch, own) => {
   return {
     updateTask: (task, prevSprint) => {
-      DebugLog('updateTask task', task);
-      DebugLog('updateTask prevSprint', prevSprint);
       dispatch(updateTask(task, prevSprint));
     },
     close: ()=>{

@@ -1,4 +1,5 @@
 import FirebaseUtil from './Utils/InitializeFirebase';
+import axios from 'axios';
 import DebugLog from './Utils/DebugLog';
 import {
   convertDateMillsecondsToHyphenatedMonthName, convertDateHyphenatedToMilliseconds,
@@ -11,7 +12,6 @@ import Task from './Models/Task';
 /**
  * action types
  */
-
 export const APP = {
   INITIALIZE: 'INITIALIZE_APP',
 };
@@ -117,6 +117,8 @@ export const PROJECT = {
   },
 };
 
+let functionUrl = 'https://us-central1-vitalarium-ae815.cloudfunctions.net';
+
 /*
  * @param areSprintsLoading true if sprint is loading, false if backlog is loading
  */
@@ -126,140 +128,37 @@ export function getProject(projectId, isPostTaskManipulation) {
   }
 }
 
-export function initializeUserObjectsInDb(redirectResult, dispatch) {
-  //1. Create initial sprint objects
-  const db = FirebaseUtil.getFirebase().database();
-  let firstSprintRef = db.ref('sprints/').push();
-  let secondSprintRef = db.ref('sprints/').push();
-  let projectRef = db.ref('projects/').push();
-  let firstSprint = new Sprint(firstSprintRef.key, [], Date.now(), new Date().setDate(new Date().getDate() + 14));
-  let secondSprint = new Sprint(secondSprintRef.key, [], new Date().setDate(new Date().getDate() + 14), new Date().setDate(new Date().getDate() + 28));
-  let project = new Project(projectRef.key, [firstSprintRef.key, secondSprintRef.key], [], Intl.DateTimeFormat().resolvedOptions().timeZone);
-  let user = new User(redirectResult.user.uid,
-    redirectResult.user.displayName,
-    redirectResult.user.email,
-    redirectResult.user.photoURL,
-    redirectResult.additionalUserInfo && redirectResult.additionalUserInfo.providerId, [projectRef.key]);
-  //push all to DB
-  let calls = [
-    db.ref('sprints/' + firstSprintRef.key).set(firstSprint),
-    db.ref('sprints/' + secondSprintRef.key).set(secondSprint),
-    db.ref('projects/' + projectRef.key).set(project),
-    db.ref('users/' + user.id).set(user)
-  ];
-  Promise.all(calls).then((results) => {
-    dispatch(loginSuccess(user));
-    project.sprints = [firstSprint, secondSprint];
-
-    project = preprocessProjectDates(project);
-    dispatch(getProjectSuccess(project));
-  }).catch((err) => {
+/*
+ * Create initial sprint objects and push to database
+ */
+export function initializeUserObjectsInDb(u, dispatch) {
+  dispatch(getProjectLoading());
+  axios.post(`${functionUrl}/initializeUserObjectsInDb`, {
+    user: u,
+  }).then((response)=>{
+    DebugLog('initializeUserObjectsInDb YAY', response);
+    dispatch(loginSuccess(response.data.user));
+    dispatch(getProjectSuccess(response.data.project));
+  }).catch((err)=>{
+    DebugLog('initializeUserObjectsInDb NAY', err);
     dispatch(userUpdatedFailure(err));
   });
 };
 
-export function getSprintsFromDb(sprintIds) {
-  // DebugLog('sprintIds', sprintIds);
-  return new Promise((resolve, reject) => {
-    const db = FirebaseUtil.getFirebase().database();
-    let sprintCalls = [];
-    for (let i = 0; i < sprintIds.length; i += 1) {
-      // DebugLog('sprintIds[i]',sprintIds[i]);
-      sprintCalls.push(db.ref('sprints/' + sprintIds[i]).once('value'));
-    }
-    Promise.all(sprintCalls).then((sprintResponses) => {
-      let sprints = [];
-      for (let i = 0; i < sprintResponses.length; i += 1) {
-        let sprint = sprintResponses[i].val();
-        // DebugLog('sprint',sprint);
-        if (Array.isArray(sprint.tasks)) {
-          let taskCalls = [];
-          for (let j = 0; j < sprint.tasks.length; j += 1) {
-            // DebugLog('sprint.tasks[j]',sprint.tasks[j]);
-            taskCalls.push(db.ref('tasks/' + sprint.tasks[j]).once('value'));
-          }
-          Promise.all(taskCalls).then((taskResults) => {
-            // DebugLog('taskResults', taskResults);
-            let tasks = [];
-            for (let k = 0; k < taskResults.length; k += 1) {
-              let task = taskResults[k].val();
-              // DebugLog('task',task);
-              tasks.push(taskResults[k].val());
-            }
-            tasks.sort(taskComparatorDesc);
-            sprint.tasks = tasks;
-            sprints.push(sprint);
-            if (sprints.length === sprintIds.length) {
-              sprints.sort(sprintComparatorDesc);
-              const now = Date.now();
-              for (let l = 0; l < sprints.length; l += 1){
-                const daysRemainingTilEndOfSprint = sprints[l].endDate - now;
-                sprints[l].daysRemainingTilEndOfSprint = daysRemainingTilEndOfSprint;
-              }
-              resolve(sprints);
-            }
-          });
-        } else {
-          sprint.tasks = [];
-          sprints.push(sprint);
-          // DebugLog('sprint',sprint);
-          // DebugLog('sprints',sprints);
-          if (sprints.length === sprintIds.length) {
-            sprints.sort(sprintComparatorDesc);
-            const now = Date.now();
-            for (let l = 0; l < sprints.length; l += 1){
-              const daysRemainingTilEndOfSprint = sprints[l].endDate - now;
-              sprints[l].daysRemainingTilEndOfSprint = daysRemainingTilEndOfSprint;
-            }
-            resolve(sprints);
-          }
-        }
-      }
-    });
-  });
-}
-
-export function getTasksFromDb(taskList) {
-  return new Promise((resolve, reject) => {
-    getTasks(taskList)((dispatchResult) => {
-      if (dispatchResult.type === TASKS.GET.SUCCESS) {
-        resolve(dispatchResult.tasks);
-      } else {
-        reject(dispatchResult);
-      }
-    });
-  });
-}
 
 export function getProjectFromDb(projectId, dispatch, isPostTaskManipulation) {
   if (isPostTaskManipulation === undefined)
     dispatch(getProjectLoading());
 
-  const db = FirebaseUtil.getFirebase().database();
-  db.ref('projects/' + projectId).once('value').then((projectSnap) => {
-    // DebugLog('projectSnap.val()', projectSnap.val());
-    let project = projectSnap.val();
-    let projectCalls = [];
-    if (project && Array.isArray(project.sprints)) {
-      // DebugLog('project.sprints',project.sprints);
-      projectCalls.push(getSprintsFromDb(project.sprints));
+  axios.get(`${functionUrl}/getProjectFromDb?projectId=${projectId}`).then((response) => {
+    const project = response.data.project;
+    if (response.data.success === true) {
+      dispatch(getProjectSuccess(project))
+    } else {
+      dispatch(getProjectFailure(response.data.err));
     }
-    if (project && Array.isArray(project.backlog)) {
-      // DebugLog('project.backlog',project.backlog);
-      projectCalls.push(getTasksFromDb(project.backlog));
-    }
-    Promise.all(projectCalls).then((projectResults) => {
-      // DebugLog('projectResults',projectResults);
-      let sprints = projectResults[0];
-      let backlog = projectResults[1] || [];
-      project.sprints = sprints;
-      project.backlog = backlog;
-      // DebugLog('project BEFORE',project);
-      project = preprocessProjectDates(project);
-      // DebugLog('project AFTER',project);
-      dispatch(getProjectSuccess(project));
-    });
-  }).catch((err) => {
+  })
+  .catch((err) => {
     dispatch(getProjectFailure(err));
   });
 }
@@ -296,7 +195,8 @@ export function initializeApp(filter) {
           let userResult = userSnap.val();
           if (!userResult) {
             //no user exists, initialize user data for the first time.
-            initializeUserObjectsInDb(result, dispatch);
+            DebugLog('result.user', result.user);
+            initializeUserObjectsInDb(result.user, dispatch);
           } else {
             dispatch(loginSuccess(userResult));
           }
@@ -312,7 +212,6 @@ export function initializeApp(filter) {
     });
   }
 }
-
 
 /*
  * User
@@ -494,27 +393,6 @@ export function sprintComparatorDesc(a, b) {
   return (a.startDate < b.startDate) ? -1 : (a.startDate > b.startDate) ? 1 : 0;
 }
 
-export function getTasks(taskList) {
-  return function(dispatch) {
-    let calls = [];
-    let db = FirebaseUtil.getFirebase().database();
-    for (let i = 0; i < taskList.length; i += 1) {
-      calls.push(db.ref('tasks/' + taskList[i]).once('value'));
-    }
-    Promise.all(calls).then((results) => {
-      let tasks = [];
-      for (let i = 0; i < results.length; i += 1) {
-        let task = results[i].val();
-        tasks.push(task);
-      }
-      tasks.sort(taskComparatorDesc);
-      dispatch(getTasksSuccess(tasks));
-    }).catch((err) => {
-      dispatch(getTasksFailure(err));
-    });
-  }
-}
-
 /*
  * Create task
  * task : ./Models/Task.js
@@ -523,54 +401,22 @@ export function getTasks(taskList) {
 export function createTask(task) {
   return function(dispatch) {
     dispatch(createTaskLoading());
-    let db = FirebaseUtil.getFirebase().database();
-    const taskRef = db.ref('tasks/').push();
-    task.id = taskRef.key;
-    if (task.sprint && task.sprint !== 'backlog') { //save to sprint
-      db.ref('sprints/' + task.sprint).once('value').then((sprintSnap) => {
-        let destSprint = sprintSnap.val();
-        if (destSprint) {
-          destSprint.tasks = Array.isArray(destSprint.tasks) ? destSprint.tasks : [];
-          destSprint.tasks.push(taskRef.key);
-          let sprintCalls = [];
-          sprintCalls.push(db.ref('tasks/' + taskRef.key).set(task));
-          sprintCalls.push(db.ref('sprints/' + task.sprint).set(destSprint));
-          Promise.all(sprintCalls).then((responses) => {
-            dispatch(createTaskSuccess(task));
-            dispatch(createTaskCloseModal());
-            dispatch(getProject(task.project, true));
-          }).catch((err) => {
-            dispatch(createTaskFailure(task, err));
-          });
-        } else {
-          dispatch(createTaskFailure(task, 'Destination sprint does not exist.'));
-        }
-      }).catch((err) => {
-        dispatch(createTaskFailure(task, err));
-      });
-    } else if (task.project) { //save to backlog since no sprint specified
-      db.ref('projects/' + task.project).once('value').then((projectSnap) => {
-        let destProject = projectSnap.val();
-        if (destProject) {
-          destProject.backlog = Array.isArray(destProject.backlog) ? destProject.backlog : [];
-          destProject.backlog.push(taskRef.key);
-          let projectCalls = [];
-          projectCalls.push(db.ref('tasks/' + taskRef.key).set(task));
-          projectCalls.push(db.ref('projects/' + task.project).set(destProject));
-          Promise.all(projectCalls).then((responses) => {
-            dispatch(createTaskSuccess(task));
-            dispatch(createTaskCloseModal());
-            dispatch(getProject(task.project, true));
-          }).catch((err) => {
-            dispatch(createTaskFailure(task, err));
-          });
-        } else {
-          dispatch(createTaskFailure(task, 'Destination project does not exist.'));
-        }
-      }).catch((err) => {
-        dispatch(createTaskFailure(task, err));
-      });
-    }
+
+    axios.post(`${functionUrl}/createTask`, {
+      task: task,
+    }).then((response)=>{
+      DebugLog('createTask YAY', response);
+      if (response.data.success === true){
+        dispatch(createTaskSuccess(task));
+        dispatch(createTaskCloseModal());
+        dispatch(getProject(task.project, true));
+      } else {
+        dispatch(createTaskFailure(task, response.data.err));
+      }
+    }).catch((err)=>{
+      DebugLog('createTask NAY', err);
+      dispatch(createTaskFailure(task, err));
+    });
   }
 }
 
@@ -641,136 +487,23 @@ export function createTaskFailure(task, err) {
  *  3. sprint-->backlog
  */
 export function updateTask(task, prevSprintId) {
-
-  // task = preprocessTaskDueDate(task);
-  // DebugLog('updateTask task',task);
-  // DebugLog('updateTask prevSprintId',prevSprintId);
-
-  //FIXME:
   return function(dispatch) {
     dispatch(updateTaskLoading());
-    let db = FirebaseUtil.getFirebase().database();
-
-    //TODO: for future: did the user change the project???
-
-    if (prevSprintId !== task.sprint){
-      // DebugLog('***SPRINT HAS CHANGED');
-      if (prevSprintId === undefined || prevSprintId === null || prevSprintId === 'backlog'){
-        // DebugLog('***BACKLOG-->SPRINT'); //task was in backlog, and did not live any sprint
-        //delete from project object
-        db.ref('projects/'+task.project).once('value').then((projectSnap)=>{
-          let project = projectSnap.val();
-          if (project){
-            // DebugLog('***PROJECT', project);
-            project.backlog = Array.isArray(project.backlog) ? project.backlog : [];
-            // DebugLog('***PRE FILTER project.backlog', project.backlog);
-            project.backlog = project.backlog.filter(t => t !== task.id); //remove the task
-            // DebugLog('***POST FILTER project.backlog', project.backlog);
-            db.ref('projects/' + task.project).set(project).then(()=>{
-              // add task to destination sprint
-              db.ref('sprints/'+task.sprint).once('value').then((newSprintSnap)=>{
-                let destSprint = newSprintSnap.val();
-                if (destSprint){
-                  DebugLog('***destSprint', destSprint);
-                  destSprint.tasks = Array.isArray(destSprint.tasks) ? destSprint.tasks : [];
-                  destSprint.tasks.push(task.id); //add to the sprint
-                  let sprintCalls = [];
-                  sprintCalls.push(db.ref('tasks/'+task.id).set(task));
-                  sprintCalls.push(db.ref('sprints/'+task.sprint).set(destSprint));
-                  Promise.all(sprintCalls).then((responses)=>{
-                    dispatch(updateTaskSuccess(task));
-                    dispatch(updateTaskClosePanel());
-                    dispatch(getProject(task.project, true));
-                  }).catch((err)=>{
-                    dispatch(updateTaskFailure(task, err));
-                  });
-                }
-              }).catch((err)=>{
-                dispatch(updateTaskFailure(task, err)); //unable to delete task from previous sprint
-              });
-            });
-          } else {
-            dispatch(updateTaskFailure(task, 'Destination project does not exist.'));
-          }
-        });
-      } else {
-        //NOTE SPRINT-->BACKLOG OR SPRINT-->SPRINT
-        //delete task id from previous sprint, then add to new sprint
-        db.ref('sprints/'+prevSprintId).once('value').then((sprintSnap)=>{
-          // DebugLog('GOT prevSprint', sprintSnap.val());
-          let prevSprint = sprintSnap.val();
-          if (prevSprint && prevSprint.tasks){
-            prevSprint.tasks = Array.isArray(prevSprint.tasks) ? prevSprint.tasks : [];
-            //filter out all occurrences of the task
-            DebugLog('prevSprint.tasks', prevSprint.tasks);
-            prevSprint.tasks = prevSprint.tasks.filter(taskId => taskId !== task.id);
-
-            db.ref('sprints/'+prevSprintId).set(prevSprint).then(() => {
-              // DebugLog('deleted task from the previous sprint');
-              //update the new sprint
-              if (task.sprint && task.sprint !== 'backlog') {
-                // DebugLog('SPRINT-->SPRINT');
-                db.ref('sprints/'+task.sprint).once('value').then((newSprintSnap)=>{
-                  let destSprint = newSprintSnap.val();
-                  // DebugLog('destSprint.tasks', destSprint.tasks);
-                  // DebugLog('taskId', task.id);
-                  if (destSprint){
-                    destSprint.tasks = Array.isArray(destSprint.tasks) ? destSprint.tasks : [];
-                    destSprint.tasks.push(task.id); //add to the sprint
-                    let sprintCalls = [];
-                    sprintCalls.push(db.ref('tasks/'+task.id).set(task));
-                    sprintCalls.push(db.ref('sprints/'+task.sprint).set(destSprint));
-                    Promise.all(sprintCalls).then((responses)=>{
-                      dispatch(updateTaskSuccess(task));
-                      dispatch(updateTaskClosePanel());
-                      dispatch(getProject(task.project, true));
-                    }).catch((err)=>{
-                      dispatch(updateTaskFailure(task, err));
-                    });
-                  }
-                }).catch((err)=>{
-                  dispatch(updateTaskFailure(task, err)); //unable to delete task from previous sprint
-                });
-              } else {
-                // DebugLog('SPRINT-->BACKLOG');
-                task.sprint = null;
-                db.ref('projects/'+task.project).once('value').then((projectSnap)=>{
-                  let project = projectSnap.val();
-                  if (project){
-                    project.backlog = Array.isArray(project.backlog) ? project.backlog : [];
-                    project.backlog.push(task.id); //add the task to the backlog
-                    db.ref('projects/' + task.project).set(project).then(()=>{
-                      db.ref('tasks/'+task.id).set(task).then(()=>{
-                        dispatch(updateTaskSuccess(task));
-                        dispatch(updateTaskClosePanel());
-                        dispatch(getProject(task.project, true));
-                      }).catch((err)=>{
-                        dispatch(updateTaskFailure(task, err));
-                      });
-                    }).catch((err)=>{
-                      dispatch(updateTaskFailure(task, err));
-                    });
-                  }
-                }).catch((err)=>{
-                  dispatch(updateTaskFailure(task, err));
-                });
-              }
-            }).catch((err) => {
-              dispatch(updateTaskFailure(task, err));
-            });
-          }
-        })
-      }
-    } else {
-      DebugLog('SPRINT HAS NOT CHANGED');
-      db.ref('tasks/'+task.id).set(task).then(()=>{
+    axios.post(`${functionUrl}/updateTask`, {
+      task: task,
+      prevSprintId: prevSprintId,
+    }).then((response)=>{
+      if(response.data.success === true){
         dispatch(updateTaskSuccess(task));
         dispatch(updateTaskClosePanel());
         dispatch(getProject(task.project, true));
-      }).catch((err)=>{
-        dispatch(updateTaskFailure(task, err));
-      });
-    }
+      } else {
+        dispatch(updateTaskFailure(task, response.data.err));
+      }
+    }).catch((err)=>{
+      dispatch(updateTaskFailure(task, err));
+
+    });
   }
 }
 
@@ -844,11 +577,12 @@ export function getProjectLoading() {
   }
 }
 
-export function getProjectSuccess(project) {
+export function getProjectSuccess(project, user) {
   return {
     type: PROJECT.GET.SUCCESS,
     status: 'Successfully retrieved project.',
-    project
+    project,
+    user,
   }
 }
 export function getProjectFailure(err) {

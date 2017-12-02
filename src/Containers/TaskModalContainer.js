@@ -13,6 +13,7 @@ const mapStateToProps = (state) => {
     projectId: state.project.project.id,
     isOpen: state.task.isOpenCreateTaskModal,
     isShowCloseWarning: state.task.isShowCreateCloseWarningModal,
+    isCreating: state.task.isCreating,
     isCreateSuccess: state.task.isCreateSuccess,
     isCreateFailure: state.task.isCreateFailure,
   }
@@ -21,7 +22,6 @@ const mapStateToProps = (state) => {
 const mapDispatchToProps = (dispatch, own) => {
   return {
     createTask: (task)=>{
-      DebugLog('createTask task',task);
       dispatch(createTask(task));
     },
     close: ()=>{
