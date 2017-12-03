@@ -53,7 +53,10 @@ exports.getProjectFromDb = functions.https.onRequest((request, response) => {
 
 exports.initializeUserObjectsInDb = functions.https.onRequest((request, response) => {
   cors(request, response, () => {
-    const u = JSON.parse(request.body.user); //user
+    let u = request.body.user;
+    if (typeof request.body.user === 'string'){
+      u = JSON.parse(request.body.user); //user
+    }
     const db = admin.database();
     let firstSprintRef = db.ref('sprints/').push();
     let secondSprintRef = db.ref('sprints/').push();
