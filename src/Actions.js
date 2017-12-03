@@ -133,9 +133,9 @@ export function getProject(projectId, isPostTaskManipulation) {
  */
 export function initializeUserObjectsInDb(u, dispatch) {
   dispatch(getProjectLoading());
-  axios.post(`${functionUrl}/initializeUserObjectsInDb`, {
+  axios.post(`${functionUrl}/initializeUserObjectsInDb`, JSON.stringify({
     user: u,
-  }).then((response)=>{
+  })).then((response)=>{
     DebugLog('initializeUserObjectsInDb YAY', response);
     dispatch(loginSuccess(response.data.user));
     dispatch(getProjectSuccess(response.data.project));
