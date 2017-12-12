@@ -21,8 +21,8 @@ const mapDispatchToProps = (dispatch) => {
     onDropTask: (task, dropResult)=>{
       const prevSprintId = task.sprint;
       switch(dropResult.target){
-        case 'backlog':
-          task.sprint = 'backlog';
+        case 'Backlog':
+          task.sprint = 'Backlog';
           break;
         default:
           task.sprint = dropResult.sprint.id;

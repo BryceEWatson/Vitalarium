@@ -18,15 +18,15 @@ exports.getProjectFromDb = functions.https.onRequest((request, response) => {
     const projectId = request.query.projectId;
     const db = admin.database();
     db.ref(`projects/${projectId}`).once('value').then((projectSnap) => {
-      // DebugLog('projectSnap.val()', projectSnap.val());
+      // console.log('projectSnap.val()', projectSnap.val());
       let project = projectSnap.val();
       let projectCalls = [];
       if (project && Array.isArray(project.sprints)) {
-        // DebugLog('project.sprints',project.sprints);
+        // console.log('project.sprints',project.sprints);
         projectCalls.push(getSprintsFromDb(project.sprints));
       }
       if (project && Array.isArray(project.backlog)) {
-        // DebugLog('project.backlog',project.backlog);
+        // console.log('project.backlog',project.backlog);
         projectCalls.push(getTasksFromDb(project.backlog));
       }
       Promise.all(projectCalls).then((projectResults) => {
@@ -97,13 +97,16 @@ exports.initializeUserObjectsInDb = functions.https.onRequest((request, response
 
 exports.updateTask = functions.https.onRequest((request, response)=>{
   cors(request, response, ()=>{
+    console.log("YASSSS");
     //TODO: for future: did the user change the project???
     const task = request.body.task;
     const prevSprintId = request.body.prevSprintId;
     const db = admin.database();
+
     if (prevSprintId !== task.sprint){
-      if (prevSprintId === undefined || prevSprintId === null || prevSprintId === 'backlog'){
-        // DebugLog('***BACKLOG-->SPRINT'); //task was in backlog, and did not live any sprint
+      console.log('*****SPRINT CHANGED')
+      if (prevSprintId === undefined || prevSprintId === null || prevSprintId === 'Backlog'){
+        console.log('***BACKLOG-->SPRINT'); //task was in backlog, and did not live any sprint
         //delete from project object
         db.ref(`projects/${task.project}`).once('value').then((projectSnap)=>{
           let project = projectSnap.val();
@@ -162,7 +165,7 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
           }
         });
       } else {
-        //NOTE SPRINT-->BACKLOG OR SPRINT-->SPRINT
+        console.log("SPRINT-->BACKLOG OR SPRINT-->SPRINT");
         //delete task id from previous sprint, then add to new sprint
         db.ref(`sprints/${prevSprintId}`).once('value').then((sprintSnap)=>{
           let prevSprint = sprintSnap.val();
@@ -172,8 +175,8 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
             prevSprint.tasks = prevSprint.tasks.filter(taskId => taskId !== task.id);
             db.ref(`sprints/${prevSprintId}`).set(prevSprint).then(() => {
               //update the new sprint
-              if (task.sprint && task.sprint !== 'backlog') {
-                // DebugLog('SPRINT-->SPRINT');
+              if (task.sprint && task.sprint !== 'Backlog') {
+                // console.log('SPRINT-->SPRINT');
                 db.ref(`sprints/${task.sprint}`).once('value').then((newSprintSnap)=>{
                   let destSprint = newSprintSnap.val();
                   if (destSprint){
@@ -188,10 +191,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                         success: true,
                       };
                       response.send(obj);
-                      //
-                      // dispatch(updateTaskSuccess(task));
-                      // dispatch(updateTaskClosePanel());
-                      // dispatch(getProject(task.project, true));
                     }).catch((err)=>{
                       let obj = {
                         err,
@@ -199,7 +198,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                         task,
                       }
                       response.send(obj);
-                      // dispatch(updateTaskFailure(task, err));
                     });
                   }
                 }).catch((err)=>{
@@ -209,10 +207,9 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                     task,
                   }
                   response.send(obj);
-                  // dispatch(updateTaskFailure(task, err)); //unable to delete task from previous sprint
                 });
               } else {
-                // DebugLog('SPRINT-->BACKLOG');
+                console.log('SPRINT-->BACKLOG');
                 task.sprint = null;
                 db.ref(`projects/${task.project}`).once('value').then((projectSnap)=>{
                   let project = projectSnap.val();
@@ -226,9 +223,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                           success: true,
                         };
                         response.send(obj);
-                        // dispatch(updateTaskSuccess(task));
-                        // dispatch(updateTaskClosePanel());
-                        // dispatch(getProject(task.project, true));
                       }).catch((err)=>{
                         let obj = {
                           err,
@@ -236,7 +230,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                           task,
                         }
                         response.send(obj);
-                        // dispatch(updateTaskFailure(task, err));
                       });
                     }).catch((err)=>{
                       let obj = {
@@ -245,7 +238,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                         task,
                       }
                       response.send(obj);
-                      // dispatch(updateTaskFailure(task, err));
                     });
                   }
                 }).catch((err)=>{
@@ -255,7 +247,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                     task,
                   }
                   response.send(obj);
-                  // dispatch(updateTaskFailure(task, err));
                 });
               }
             }).catch((err) => {
@@ -265,21 +256,18 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
                 task,
               }
               response.send(obj);
-              // dispatch(updateTaskFailure(task, err));
             });
           }
         })
       }
     } else {
+      console.log('*****SPRINT DID NOT CHANGE')
       db.ref(`tasks/${task.id}`).set(task).then(()=>{
         let obj = {
           task: task,
           success: true,
         };
         response.send(obj);
-        // dispatch(updateTaskSuccess(task));
-        // dispatch(updateTaskClosePanel());
-        // dispatch(getProject(task.project, true));
       }).catch((err)=>{
         let obj = {
           err,
@@ -287,7 +275,6 @@ exports.updateTask = functions.https.onRequest((request, response)=>{
           task,
         }
         response.send(obj);
-        // dispatch(updateTaskFailure(task, err));
       });
     }
   });
@@ -299,7 +286,8 @@ exports.createTask = functions.https.onRequest((request, response)=>{
     const db = admin.database();
     const taskRef = db.ref('tasks/').push();
     task.id = taskRef.key;
-    if (task.sprint && task.sprint !== 'backlog') { //save to sprint
+    console.log('createTask', task);
+    if (task.sprint && task.sprint !== 'Backlog') { //save to sprint
       db.ref('sprints/' + task.sprint).once('value').then((sprintSnap) => {
         let destSprint = sprintSnap.val();
         if (destSprint) {
@@ -416,7 +404,7 @@ const getSprintsFromDb = (sprintIds) => {
         if (Array.isArray(sprint.tasks)) {
           let taskCalls = [];
           for (let j = 0; j < sprint.tasks.length; j += 1) {
-            // DebugLog('sprint.tasks[j]',sprint.tasks[j]);
+            // console.log('sprint.tasks[j]',sprint.tasks[j]);
             taskCalls.push(db.ref('tasks/' + sprint.tasks[j]).once('value'));
           }
           Promise.all(taskCalls).then((taskResults) => {

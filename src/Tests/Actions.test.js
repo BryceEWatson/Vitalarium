@@ -179,7 +179,7 @@ describe('Actions: TASK', () => {
 						let db = FirebaseUtil.getFirebase().database();
 						db.ref('projects/-Kzxhkha5X75WV4aDRCy').once('value').then((projectSnap) => {
 							let project = projectSnap.val();
-							expect(project).toHaveProperty('backlog');
+							expect(project).toHaveProperty('Backlog');
 							expect(project.backlog.includes(object.task.id)).toEqual(true);
 							done();
 						}).catch((err) => {

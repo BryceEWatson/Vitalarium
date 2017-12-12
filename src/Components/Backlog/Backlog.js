@@ -10,7 +10,7 @@ const backlogTarget = {
     return {
       project: props.project,
       status: 'Dropped task to backlog',
-      target: 'backlog',
+      target: 'Backlog',
     }
   }
 };

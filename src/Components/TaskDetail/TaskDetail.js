@@ -37,8 +37,8 @@ export default class TaskDetail extends React.Component {
       title: '',
       description: '',
       size: 'S',
-      prevSprint: this.props.task && this.props.task.sprint || 'backlog',
-      sprint: this.props.task && this.props.task.sprint || 'backlog',
+      prevSprint: this.props.task && this.props.task.sprint || 'Backlog',
+      sprint: this.props.task && this.props.task.sprint || 'Backlog',
       project: this.props.task && this.props.task.project || this.props.projectId,
       // dueDate: this.props.task && this.props.task.dueDate && convertDateMillsecondsToHyphenated(this.props.task.dueDate) || convertDateMillsecondsToHyphenated(now),
       comments: this.props.task && this.props.task.comments || null,
@@ -201,7 +201,7 @@ export default class TaskDetail extends React.Component {
               <div className="TaskDetailSizeFlexItem TaskDetailSizeFlexItem--Right">
                 <label htmlFor="sprintField">Sprint</label>
                 <select onChange={this.onChangeSprint} value={this.state.sprint} id="sprintField">
-                  <option value={'backlog'}>Backlog</option>
+                  <option value={'Backlog'}>Backlog</option>
                   <option value={currentSprintId}>Current sprint</option>
                   <option value={nextSprintId}>Next sprint</option>
                 </select>
