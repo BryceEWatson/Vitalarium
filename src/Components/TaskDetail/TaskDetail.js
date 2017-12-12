@@ -62,7 +62,7 @@ export default class TaskDetail extends React.Component {
         description: task.description,
         size: task.size,
         prevSprint: task.sprint,
-        sprint: task.sprint || null,
+        sprint: task.sprint || 'Backlog',
         project: task.project,
         // dueDate: convertDateMillsecondsToHyphenated(task.dueDate),
         comments: task.comments || null,

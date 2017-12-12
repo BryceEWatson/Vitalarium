@@ -327,6 +327,11 @@ exports.createTask = functions.https.onRequest((request, response)=>{
         response.send(obj);
       });
     } else if (task.project) { //save to backlog since no sprint specified
+
+      if (!task.sprint){ //safeguard to prevent task.sprint from ever being null
+        task.sprint = 'Backlog';
+      }
+
       db.ref('projects/' + task.project).once('value').then((projectSnap) => {
         let destProject = projectSnap.val();
         if (destProject) {
