@@ -36,7 +36,7 @@ export default class TaskDetail extends React.Component {
       id: undefined,
       title: '',
       description: '',
-      size: 'S',
+      size: 'Small',
       prevSprint: this.props.task && this.props.task.sprint || 'Backlog',
       sprint: this.props.task && this.props.task.sprint || 'Backlog',
       project: this.props.task && this.props.task.project || this.props.projectId,
@@ -60,7 +60,7 @@ export default class TaskDetail extends React.Component {
         id: task.id,
         title: task.title,
         description: task.description,
-        size: task.size,
+        size: task.size || 'Small',
         prevSprint: task.sprint,
         sprint: task.sprint || 'Backlog',
         project: task.project,
@@ -192,9 +192,9 @@ export default class TaskDetail extends React.Component {
               <div className="TaskDetailSizeFlexItem TaskDetailSizeFlexItem--Left">
                 <label htmlFor="sizeField">Task size</label>
                 <select onChange={this.onChangeSize} value={this.state.size} id="sizeField">
-                  <option value="S">Small</option>
-                  <option value="M">Medium</option>
-                  <option value="L">Large</option>
+                  <option value="Small">Small</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Large">Large</option>
                 </select>
               </div>
 
