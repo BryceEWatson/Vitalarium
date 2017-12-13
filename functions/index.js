@@ -454,7 +454,7 @@ const sprintComparatorDesc = (a, b) => {
 }
 
 const taskComparatorDesc = (a, b) => {
-  return (a.createdOn < b.createdOn) ? 1 : a.createdOn > b.createdOn ? -1 : 0;
+  return (a.updatedOn < b.updatedOn) ? 1 : a.updatedOn > b.updatedOn ? -1 : 0;
 }
 
 const preprocessProjectDates = (project) => {
